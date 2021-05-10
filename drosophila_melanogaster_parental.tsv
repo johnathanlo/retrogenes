@@ -1,0 +1,71 @@
+external_id	canonical_transcript_id	organism_id	chromosome	start	end	strand	status	symbol	aliases	description	
+FBgn0003134	FBtr0084642	drosophila_melanogaster	3R	20343978	20347065	+	KNOWN	Pp1alpha-96A		Protein phosphatase 1alpha at 96A [Source:FlyBase gene name;Acc:FBgn0003134]	
+FBgn0015024	FBtr0073680	drosophila_melanogaster	X	12547815	12551867	+	KNOWN	CkIalpha		Casein kinase Ialpha [Source:FlyBase gene name;Acc:FBgn0015024]	
+FBgn0262736	FBtr0086150	drosophila_melanogaster	2R	2512746	2520633	-	KNOWN	Vha16-1		Vacuolar H[+] ATPase subunit 16-1 [Source:FlyBase gene name;Acc:FBgn0262736]	
+FBgn0250874	FBtr0070497	drosophila_melanogaster	X	2624251	2626218	-	KNOWN	ttm50		tiny tim 50 [Source:FlyBase gene name;Acc:FBgn0250874]	
+FBgn0015622	FBtr0110908	drosophila_melanogaster	3R	25140964	25145366	-	KNOWN	Cnx99A		Calnexin 99A [Source:FlyBase gene name;Acc:FBgn0015622]	
+FBgn0262559	FBtr0083563	drosophila_melanogaster	3R	14052112	14054440	+	KNOWN	Mdh2		Malate dehydrogenase 2 [Source:FlyBase gene name;Acc:FBgn0262559]	
+FBgn0030268	FBtr0073477	drosophila_melanogaster	X	11023394	11031056	-	KNOWN	Klp10A		Klp10A [Source:FlyBase gene name;Acc:FBgn0030268]	
+FBgn0037440	FBtr0081734	drosophila_melanogaster	3R	2196747	2199747	-	KNOWN	CG1041			
+FBgn0031771	FBtr0079216	drosophila_melanogaster	2L	6060834	6062757	-	KNOWN	CG9140			
+FBgn0025790	FBtr0089625	drosophila_melanogaster	2R	19746589	19750135	-	KNOWN	TBPH		TAR DNA-binding protein-43 homolog [Source:FlyBase gene name;Acc:FBgn0025790]	
+FBgn0030733	FBtr0074216	drosophila_melanogaster	X	16180320	16181021	+	KNOWN	CG3560			
+FBgn0001145	FBtr0073494	drosophila_melanogaster	X	11316887	11324228	+	KNOWN	Gs2		Glutamine synthetase 2 [Source:FlyBase gene name;Acc:FBgn0001145]	
+FBgn0035400	FBtr0113132	drosophila_melanogaster	3L	3128033	3143457	-	KNOWN	CG11537			
+FBgn0261439	FBtr0086552	drosophila_melanogaster	2R	15279367	15283477	-	KNOWN	SdhA		Succinate dehydrogenase A [Source:FlyBase gene name;Acc:FBgn0261439]	
+FBgn0010100	FBtr0300425	drosophila_melanogaster	2L	21168615	21173017	+	KNOWN	Acon		Aconitase [Source:FlyBase gene name;Acc:FBgn0010100]	
+FBgn0000557	FBtr0085832	drosophila_melanogaster	3R	27564189	27569028	+	KNOWN	Ef1alpha100E		Elongation factor 1alpha100E [Source:FlyBase gene name;Acc:FBgn0000557]	
+FBgn0035709	FBtr0076963	drosophila_melanogaster	3L	6657323	6658741	-	KNOWN	eIF4E-4		eIF4E-4 [Source:FlyBase gene name;Acc:FBgn0035709]	
+FBgn0017418	FBtr0306057	drosophila_melanogaster	X	18024424	18031718	-	KNOWN	ari-1		ariadne [Source:FlyBase gene name;Acc:FBgn0017418]	
+FBgn0031145	FBtr0333762	drosophila_melanogaster	X	20906495	20912494	+	KNOWN	Ntf-2		Nuclear transport factor-2 [Source:FlyBase gene name;Acc:FBgn0031145]	
+FBgn0011726	FBtr0072188	drosophila_melanogaster	2R	19931970	19934359	-	KNOWN	tsr		twinstar [Source:FlyBase gene name;Acc:FBgn0011726]	
+FBgn0040377	FBtr0070450	drosophila_melanogaster	X	2473276	2474330	-	KNOWN	Vha36-3		Vacuolar H[+] ATPase subunit 36-3 [Source:FlyBase gene name;Acc:FBgn0040377]	
+FBgn0040066	FBtr0308566	drosophila_melanogaster	X	2480009	2482250	+	KNOWN	wds		will die slowly [Source:FlyBase gene name;Acc:FBgn0040066]	
+FBgn0033408	FBtr0088555	drosophila_melanogaster	2R	5282833	5283602	-	KNOWN	CG8800			
+FBgn0032810	FBtr0081257	drosophila_melanogaster	2L	19565862	19567359	+	KNOWN	CG13077			
+FBgn0031047	FBtr0074743	drosophila_melanogaster	X	19532912	19534784	+	KNOWN	Rcd-1		Required for cell differentiation 1 ortholog [Source:FlyBase gene name;Acc:FBgn0031047]	
+FBgn0013305	FBtr0089877	drosophila_melanogaster	2R	8764598	8767735	-	KNOWN	Nmda1		N-methyl-D-aspartate receptor-associated protein [Source:FlyBase gene name;Acc:FBgn0013305]	
+FBgn0035670	FBtr0077066	drosophila_melanogaster	3L	6054471	6056010	-	KNOWN	CG10472			
+FBgn0011745	FBtr0082652	drosophila_melanogaster	3R	8517457	8519954	+	KNOWN	Arp87C		Actin-related protein 87C [Source:FlyBase gene name;Acc:FBgn0011745]	
+FBgn0031881	FBtr0079389	drosophila_melanogaster	2L	7027593	7028959	+	KNOWN	CG3476			
+FBgn0029854	FBtr0089870	drosophila_melanogaster	X	6169004	6170745	-	KNOWN	CG3566			
+FBgn0004227	FBtr0074233	drosophila_melanogaster	X	16255565	16265580	+	KNOWN	nonA		no on or off transient A [Source:FlyBase gene name;Acc:FBgn0004227]	
+FBgn0028552	FBtr0072187	drosophila_melanogaster	2R	19934667	19936412	-	KNOWN	gammaSnap		gamma-soluble NSF attachment protein [Source:FlyBase gene name;Acc:FBgn0028552]	
+FBgn0058045	FBtr0111163	drosophila_melanogaster	3L	24021614	24028959	+	KNOWN	CG40045			
+FBgn0038017	FBtr0082568	drosophila_melanogaster	3R	8185732	8188975	+	KNOWN	CG4115			
+FBgn0016041	FBtr0333748	drosophila_melanogaster	X	7630925	7634011	+	KNOWN	Tom40		Translocase of outer membrane 40 [Source:FlyBase gene name;Acc:FBgn0016041]	
+FBgn0014869	FBtr0085384	drosophila_melanogaster	3R	24973969	24975623	+	KNOWN	Pglym78		Phosphoglyceromutase [Source:FlyBase gene name;Acc:FBgn0014869]	
+FBgn0033203	FBtr0088921	drosophila_melanogaster	2R	3549486	3550764	+	KNOWN	CG2070			
+FBgn0035425	FBtr0073094	drosophila_melanogaster	3L	3236804	3239578	-	KNOWN	CG17746			
+FBgn0086361	FBtr0085444	drosophila_melanogaster	3R	25417541	25442879	+	KNOWN	alph		alphabet [Source:FlyBase gene name;Acc:FBgn0086361]	
+FBgn0016700	FBtr0084104	drosophila_melanogaster	3R	17091750	17094831	-	KNOWN	Rab1		Rab-protein 1 [Source:FlyBase gene name;Acc:FBgn0016700]	
+FBgn0033184	FBtr0088981	drosophila_melanogaster	2R	3396031	3397959	-	KNOWN	CG12736			
+FBgn0259209	FBtr0299697	drosophila_melanogaster	2R	19962535	19965746	+	KNOWN	Mlp60A		Muscle LIM protein at 60A [Source:FlyBase gene name;Acc:FBgn0259209]	
+FBgn0031636	FBtr0300756	drosophila_melanogaster	2L	4838346	4841465	+	KNOWN	CG12194			
+FBgn0025638	FBtr0308651	drosophila_melanogaster	X	541319	542630	+	KNOWN	Roc1a		Roc1a [Source:FlyBase gene name;Acc:FBgn0025638]	
+FBgn0033603	FBtr0302718	drosophila_melanogaster	2R	7154419	7160019	-	KNOWN	Cpr47Ef		Cuticular protein 47Ef [Source:FlyBase gene name;Acc:FBgn0033603]	
+FBgn0052672	FBtr0071498	drosophila_melanogaster	X	10658910	10662368	-	KNOWN	Atg8a		Autophagy-specific gene 8a [Source:FlyBase gene name;Acc:FBgn0052672]	
+FBgn0085190	FBtr0301006	drosophila_melanogaster	2L	10580965	10581662	-	KNOWN	CG34161			
+FBgn0004066	FBtr0074210	drosophila_melanogaster	X	16170304	16171620	+	KNOWN	Pros28.1		Proteasome 28kD subunit 1 [Source:FlyBase gene name;Acc:FBgn0004066]	
+FBgn0052675	FBtr0071500	drosophila_melanogaster	X	10654080	10658269	-	KNOWN	Tango5		Transport and Golgi organization 5 [Source:FlyBase gene name;Acc:FBgn0052675]	
+FBgn0024315	FBtr0087115	drosophila_melanogaster	2R	12542819	12555183	-	KNOWN	Picot		Picot [Source:FlyBase gene name;Acc:FBgn0024315]	
+FBgn0020513	FBtr0073705	drosophila_melanogaster	X	12651068	12654651	-	KNOWN	ade5		ade5 [Source:FlyBase gene name;Acc:FBgn0020513]	
+FBgn0011710	FBtr0077198	drosophila_melanogaster	X	21229302	21232715	+	KNOWN	Sep1		Septin-1 [Source:FlyBase gene name;Acc:FBgn0011710]	
+FBgn0051715	FBtr0079996	drosophila_melanogaster	2L	10341615	10342523	+	KNOWN	CG31715			
+FBgn0004888	FBtr0073151	drosophila_melanogaster	3L	3814210	3818383	+	KNOWN	Scsalpha		Succinyl coenzyme A synthetase alpha subunit [Source:FlyBase gene name;Acc:FBgn0004888]	
+FBgn0000489	FBtr0075528	drosophila_melanogaster	3L	15918903	15947897	-	KNOWN	Pka-C3		cAMP-dependent protein kinase 3 [Source:FlyBase gene name;Acc:FBgn0000489]	
+FBgn0025806	FBtr0072177	drosophila_melanogaster	2R	19950575	19952928	+	KNOWN	Rap2l		Ras-associated protein 2-like [Source:FlyBase gene name;Acc:FBgn0025806]	
+FBgn0033551	FBtr0088223	drosophila_melanogaster	2R	6701053	6703286	+	KNOWN	CG7222			
+FBgn0030823	FBtr0074403	drosophila_melanogaster	X	17094758	17096631	-	KNOWN	CG8918			
+FBgn0020653	FBtr0071168	drosophila_melanogaster	X	8136516	8142072	+	KNOWN	Trxr-1		Thioredoxin reductase-1 [Source:FlyBase gene name;Acc:FBgn0020653]	
+FBgn0015614	FBtr0309866	drosophila_melanogaster	2R	3673516	3676558	+	KNOWN	CanB2		Calcineurin B2 [Source:FlyBase gene name;Acc:FBgn0015614]	
+FBgn0011288	FBtr0111143	drosophila_melanogaster	3L	24067328	24292305	+	KNOWN	Snap25		Synapse protein 25 [Source:FlyBase gene name;Acc:FBgn0011288]	
+FBgn0086687	FBtr0082626	drosophila_melanogaster	3R	8265321	8273338	+	KNOWN	desat1		desat1 [Source:FlyBase gene name;Acc:FBgn0086687]	
+FBgn0027066	FBtr0300285	drosophila_melanogaster	2R	2636731	2643805	+	KNOWN	Eb1		Eb1 [Source:FlyBase gene name;Acc:FBgn0027066]	
+FBgn0030263	FBtr0073428	drosophila_melanogaster	X	10984413	10986127	+	KNOWN	CG2076			
+FBgn0033906	FBtr0302453	drosophila_melanogaster	2R	10057970	10060503	+	KNOWN	CG8331			
+FBgn0029067	FBtr0077226	drosophila_melanogaster	X	21190805	21195060	-	KNOWN	Dd		Dullard [Source:FlyBase gene name;Acc:FBgn0029067]	
+FBgn0035600	FBtr0077144	drosophila_melanogaster	3L	5353310	5355898	+	KNOWN	CG4769			
+FBgn0010497	FBtr0080292	drosophila_melanogaster	2L	12027439	12034123	+	KNOWN	dmGlut		Dietary and metabolic glutamate transporter [Source:FlyBase gene name;Acc:FBgn0010497]	
+FBgn0036820	FBtr0308813	drosophila_melanogaster	3L	18862329	18863157	+	KNOWN	CG6852			
+FBgn0037402	FBtr0078585	drosophila_melanogaster	3R	1948313	1950127	+	KNOWN	Vha14-2		Vacuolar H[+] ATPase subunit 14-2 [Source:FlyBase gene name;Acc:FBgn0037402]	
