@@ -1,0 +1,912 @@
+---
+title: "Retrogene analysis - drosophila"
+author: "Johnathan Lo"
+date: "3/16/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/FALL20/Retrogenes")
+load("partners_records_dm.RData") #complete dataset made on 1-17
+runs=1000 #set # runs for simulations and bootstraps
+linkage_max <- 100000000
+set.seed(6)
+library(dplyr)
+library(rentrez)
+library(chromPlot)
+library(GenomicFeatures)
+library(ggplot2)
+library(reshape2)
+library(HTSanalyzeR)
+library(org.Dm.eg.db)
+```
+
+```{r}
+dm_genome_h <- data.frame(row.names = c("X","Y", "2L", "2R", "3L", "3R", "4"), chrom.size = c(23542271,
+                                                                                            3667352,
+                                                                                            23513712,
+                                                                                            25286936,
+                                                                                            28110227,
+                                                                                            32079331,
+                                                                                            1348131))
+dm_genome <- dm_genome_h
+dm_genome[,1] <- dm_genome$chrom.size*c(1.5, .5, 2, 2, 2, 2, 2)
+
+dm_genes_per_chrom <- data.frame(c("X","Y", "2L", "2R", "3L", "3R", "4"), gene.num = c(2689,
+                                                                                       113,
+                                                                                       3515,
+                                                                                       3652,
+                                                                                       3486,
+                                                                                       4223,
+                                                                                       114))
+#read in retrogene data
+retrogenes <- read.csv("drosophila_melanogaster_retrogene.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+parentals <- read.csv("drosophila_melanogaster_parental.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+# human_rec_map <- read.csv("human-recombination-map.csv")
+#assign to variables for convenience
+parental_genes <- parentals$symbol
+parental_ids <- parentals$external_id
+
+
+#get GRN data
+# grns <- read.csv("human-grn/human.source", sep = "\t", header = FALSE, stringsAsFactors = FALSE)
+
+grn_files <- list.files("Drosophila-melanogaster_experimental_Mathelier-2014/")
+grns <- read.csv(paste("Drosophila-melanogaster_experimental_Mathelier-2014/", grn_files[1], sep = ""),
+                 sep = "\t",
+                 header = TRUE, 
+                 stringsAsFactors = FALSE,
+                 row.names=NULL)
+for(i in 2:length(grn_files)){
+  temp <- read.csv(paste("Drosophila-melanogaster_experimental_Mathelier-2014/", grn_files[i], sep = ""),
+                 sep = "\t",
+                 header = TRUE, 
+                 stringsAsFactors = FALSE,
+                 row.names=NULL)
+  grns <- rbind(grns, temp)
+}
+
+# chrom data
+dm_chromplot <- dm_genome
+dm_chromplot$Chrom  <- row.names(dm_chromplot)
+dm_chromplot$Start <- 0
+dm_chromplot$End <- dm_chromplot$chrom.size
+retrogenes$Colors <- "red"
+retrogenes_plot <- retrogenes
+retrogenes_plot$Chrom <- retrogenes_plot$chromosome
+retrogenes_plot$Start <- retrogenes_plot$start
+retrogenes_plot$End <- retrogenes_plot$end+200000
+retrogenes_plot$Name <- retrogenes_plot$retrodb_id
+retrogenes_plot <- retrogenes_plot[retrogenes_plot$Chrom %in%  c("X","Y", "2L", "2R", "3L", "3R", "4"),]
+retrogenes_plot$Chrom <- paste("chr", retrogenes_plot$chromosome, sep = "")
+retrogenes_plot <- retrogenes_plot[,c("Chrom", "Start", "End", "Name","Colors")]
+chromPlot(gaps = dm_chromplot, bands = retrogenes_plot)
+
+retrogenes$par_chrom <- rep(0, nrow(retrogenes))
+for(i in 1:nrow(retrogenes)){
+  par <- retrogenes$parental_accession[i]
+  par_chrom <- parentals$chromosome[parentals$external_id == par]
+  retrogenes$par_chrom[i] <- par_chrom
+}
+
+ref_dist_dm1 <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  diff_chrom_bs <- vector(mode = "logical", length = nrow(retrogenes))
+  #retro_sample <- sample(retrogenes_final, size = length(retrogenes_final), replace = TRUE)
+  for(j in 1:nrow(retrogenes)){
+    retro_chrom <- sample(row.names(dm_genome), size = 1, prob = dm_genome$chrom.size)#try with gene density
+    #parent_chrom <- retro_sample[[j]][[1]]$parentalchrom
+    parent_chrom <- sample(row.names(dm_genes_per_chrom), size = 1, prob = dm_genes_per_chrom$gene.num)
+    diff_chrom_bs[j] <- retro_chrom!=parent_chrom
+  }
+  ref_dist_dm1[i] <- sum(diff_chrom_bs)/nrow(retrogenes)
+}
+density_full_dm1 <- density(ref_dist_dm1)
+hist(ref_dist_dm1)
+
+```
+
+```{r, results="hide"}
+#First, go through list of parental genes to find network partners
+#use a list, because the number of partner genes per parental gene is variable
+partners <- vector(mode = "list", length = length(parental_genes))
+for(i in 1:length(parental_genes)){
+  partners[[i]] <- grns$tf_name[grns$target_name == parental_genes[i]]
+}
+
+ 
+#previous step resulted in empty indices; here we clean them out
+empty_inds <- which(lapply(partners, length)==0)
+partners_final <- partners[-empty_inds]
+parentals_final <- parentals[-empty_inds,]
+parental_genes_final <- parental_genes[-empty_inds]
+parental_ids_final <- parental_ids[-empty_inds]
+parental_chrom_final <- parentals_final$chromosome
+parental_loc_final <- parentals_final$start
+
+#Finally, we're ready to search NCBI for the remaining partner IDs. Uses rentrez package.
+#For convenience, the below code is commented out and instead, we load from memory
+# partners_records <- vector(mode = "list", length = length(partners_ids_final)) 
+# for(i in 1:length(partners_ids_final)){
+#   partners_records[[i]] <- vector(mode = "list", length = length(partners_ids_final[[i]]))
+#   for(j in 1:length(partners_ids_final[[i]])){
+#     try(partners_records[[i]][[j]] <- entrez_summary(db = "gene", id = partners_ids_final[[i]][j])) 
+#   }
+# }
+
+getParentalIDs <- 1:length(parental_ids_final)
+names(getParentalIDs) <- parental_ids_final
+parental_ids_ncbi_final <- drosoAnnotationConvertor(getParentalIDs, initialIDs = "Flybase", finalIDs = "Entrez.gene")
+parental_ids_final <- parental_ids_final[parental_ids_ncbi_final]
+parental_genes_final <- parental_genes_final[parental_ids_ncbi_final]
+parental_ids_ncbi_final <- names(parental_ids_ncbi_final)
+
+partners_ids_final <- vector(mode = "list", length = length(partners_final))
+for(i in 1:length(partners_final)){
+  getPartnerIDS <- 1:length(partners_final[[i]])
+  names(getPartnerIDS) <- partners_final[[i]]
+  temp <- drosoAnnotationConvertor(getPartnerIDS, initialIDs = "Symbol", finalIDs = "Entrez.gene")
+  partners_final[[i]] <- partners_final[[i]][temp]
+  partners_ids_final[[i]] <- names(temp) 
+}
+
+# partners_records <- vector(mode = "list", length = length(partners_ids_final))
+# for(i in 1:length(partners_ids_final)){
+#   partners_records[[i]] <- vector(mode = "list", length = length(partners_ids_final[[i]]))
+#   for(j in 1:length(partners_ids_final[[i]])){
+#     try(partners_records[[i]][[j]] <- entrez_summary(db="gene", id = partners_ids_final[[i]][j]))
+#   }
+# }
+# save(partners_records, file = "partners_records_dm.RData" )
+#We are ready to start building our final datasets.
+
+#Here, we go through the list we retrieved from NCBI and extract genomic coordinates for each of the partner genes
+partners_chrom <- vector(mode = "list", length = length(partners_records))
+partners_chrom_loc <- vector(mode = "list", length = length(partners_records))
+for(i in 1:length(partners_records)){
+  partners_chrom[[i]] <- vector(mode = "character", length = length(partners_records[[i]]))
+  partners_chrom_loc[[i]] <- vector(mode = "numeric", length = length(partners_records[[i]]))
+  for(j in 1:length(partners_records[[i]])){
+    partners_chrom[[i]][j] <- partners_records[[i]][[j]]$genomicinfo$chrloc
+    partners_chrom_loc[[i]][j] <- partners_records[[i]][[j]]$genomicinfo$chrstart
+  }
+}
+
+#Construct retrogenes_final - the dataset arranged by retrogenes
+retrogenes_final <- vector(mode = "list", length = length(retrogenes))
+for(i in 1:nrow(retrogenes)){
+  indices <- grep(retrogenes$parental_accession[i], parental_ids_final)
+  retrogenes_final[[i]] <- vector(mode = "list", length = length(indices))
+  if(length(indices)>0){
+    for(j in 1:length(indices)){
+      ret_id <- retrogenes$retrodb_id[i]
+      ret_chrom <- retrogenes$chromosome[i]
+      ret_loc <- retrogenes$start[i]
+      par_gene <- parental_genes_final[indices[j]]
+      par_id <- parental_ids_final[indices[j]]
+      par_chrom <- parental_chrom_final[indices[j]]
+      par_loc <- parental_loc_final[indices[j]]
+      part_genes <- partners_final[[indices[j]]]
+      part_ids <- partners_ids_final[[indices[j]]]
+      part_chroms <- partners_chrom[[indices[j]]]
+      part_locs <- partners_chrom_loc[[indices[j]]]
+      retrogenes_final[[i]][[j]] <- list(retroid = ret_id,
+                                         retrochrom = ret_chrom,
+                                         retroloc = ret_loc,
+                                         parentalgene = par_gene,
+                                         parentalid = par_id,
+                                         parentalchrom = par_chrom,
+                                         parentalloc = par_loc,
+                                         partnergenes = part_genes,
+                                         partnerids = part_ids,
+                                         partnerchroms = part_chroms,
+                                         partnerlocs = part_locs)
+    }
+  }
+}
+retrogenes_final <- retrogenes_final[lapply(retrogenes_final,length)!=0] #remove empty indices again; necessary because not every retrogene has a corresponding parental and/or partners in our miRNA removed dataset
+
+#This is an exclusive list with just known protein coding retrogenes. 
+retrogenes_pc <- retrogenes[retrogenes$status == "KNOWN_PROTEIN_CODING",]
+retrogenes_final_pc <- list()
+for(i in 1:length(retrogenes_final)){
+  if(retrogenes_final[[i]][[1]]$retroid %in% retrogenes_pc$retrodb_id){
+    retrogenes_final_pc <- c(retrogenes_final_pc, retrogenes_final[i])
+  }
+}
+
+
+#Now, construct second dataset - organized by parental genes
+retrogenes_by_parentals <- vector(mode = "list", length = length(parental_genes_final))
+for(i in 1:length(parental_genes_final)){
+  indices <- grep(parental_ids_final[[i]], retrogenes$parental_accession)
+  par_gene <- parental_genes_final[i]
+  par_id <- parental_ids_final[i]
+  par_chrom <- parental_chrom_final[i]
+  par_loc <- parental_loc_final[i]
+  part_genes <- partners_final[[i]]
+  part_ids <- partners_ids_final[[i]]
+  part_chroms <- partners_chrom[[i]]
+  part_locs <- partners_chrom_loc[[i]]
+  retro_ids <- retrogenes[indices,]$retrodb_id
+  retro_chroms <- retrogenes[indices,]$chromosome
+  retro_locs <- retrogenes[indices,]$start
+  
+  retrogenes_by_parentals[[i]] <- list(retroid = retro_ids,
+                                       retrochrom = retro_chroms,
+                                       retroloc = retro_locs,
+                                       parentalgene = par_gene,
+                                       parentalid = par_id,
+                                       parentalchrom = par_chrom,
+                                       parentalloc = par_loc,
+                                       partnergenes = part_genes,
+                                       partnerids = part_ids,
+                                       partnerchroms = part_chroms,
+                                       partnerlocs = part_locs)
+}
+#Again, make a subset of just those parental genes producing protein coding retrogenes
+retrogenes_by_parentals_pc <- vector(mode = "list", length = length(parental_genes_final))
+for(i in 1:length(parental_genes_final)){
+  indices <- grep(parental_ids_final[[i]], retrogenes_pc$parental_accession)
+  if(length(indices)>0){
+    par_gene <- parental_genes_final[i]
+    par_id <- parental_ids_final[i]
+    par_chrom <- parental_chrom_final[i]
+    par_loc <- parental_loc_final[i]
+    part_genes <- partners_final[[i]]
+    part_ids <- partners_ids_final[[i]]
+    part_chroms <- partners_chrom[[i]]
+    part_locs <- partners_chrom_loc[[i]]
+    retro_ids <- retrogenes_pc[indices,]$retrodb_id
+    retro_chroms <- retrogenes_pc[indices,]$chromosome
+    retro_locs <- retrogenes_pc[indices,]$start
+    
+    retrogenes_by_parentals_pc[[i]] <- list(retroid = retro_ids,
+                                            retrochrom = retro_chroms,
+                                            retroloc = retro_locs,
+                                            parentalgene = par_gene,
+                                            parentalid = par_id,
+                                            parentalchrom = par_chrom,
+                                            parentalloc = par_loc,
+                                            partnergenes = part_genes,
+                                            partnerids = part_ids,
+                                            partnerchroms = part_chroms,
+                                            partnerlocs = part_locs)
+  }
+}
+retrogenes_by_parentals_pc <- retrogenes_by_parentals_pc[-which(sapply(retrogenes_by_parentals_pc, is.null))]
+
+find_dist <- function(chr, loc1, loc2){
+  if(chr %in% c("X", "Y")){
+    chr = "23"
+  }
+  rec_chrom <- human_rec_map[human_rec_map$chr == chr, ]
+  loc1_match <- human_rec_map[which.min(abs(loc1 - rec_chrom$phys.loc)),] 
+  loc2_match <- human_rec_map[which.min(abs(loc2 - rec_chrom$phys.loc)),]
+  rec_dist <- as.numeric(abs(loc1_match$gen.loc - loc2_match$gen.loc))
+  return(rec_dist)
+}
+
+#total number of partner genes
+all_partners <- c()
+for(i in 1:length(retrogenes_final)){
+  partners_i <- retrogenes_final[[i]][[1]]$partnergenes
+  all_partners <- c(all_partners, partners_i)
+}
+length(unique(all_partners))
+
+#Here are the final datasets:
+# head(retrogenes_final)
+# head(retrogenes_final_pc)
+# head(retrogenes_by_parentals)
+# head(retrogenes_by_parentals_pc)
+```
+
+# 3. First hypothesis test: retrogenes are not distributed across the genome independent of parental location
+
+We hypothesize that differences in linkage can influence retrogene fixation probability. This difference in linkage can be either an increase or decrease in linkage. Hence, we conduct a 2-tailed test.
+
+## a) Building the reference distribution
+
+Here, we build the reference distribution. Our null hypothesis is that retrogenes are distributed across the genome at random. Hence, we will randomly select a set of parental genes by sampling from the set of chromosomes weighted by gene density, and then create daughter retrogenes by sampling from the set of chromosomes weighted by size in base pairs. The statistic we will construct a distribution over is \(\gamma = \frac{total\;pairs\;on\;different\;chromosomes}{total\;observations}\). By normalizing to a percentage, we can better compare results from the full set of retrogenes to results from the protein coding retrogenes only. 
+
+```{r}
+#make reference distribution for full set of retrogenes
+ref_dist_full_3a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  diff_chrom_bs <- vector(mode = "logical", length = length(retrogenes_final))
+  #retro_sample <- sample(retrogenes_final, size = length(retrogenes_final), replace = TRUE)
+  for(j in 1:length(retrogenes_final)){
+    retro_chrom <- sample(row.names(dm_genome), size = 1, prob = dm_genome$chrom.size)#try with gene density
+    #parent_chrom <- retro_sample[[j]][[1]]$parentalchrom
+    parent_chrom <- sample(row.names(dm_genome), size = 1, prob = dm_genes_per_chrom$chrom.size)
+    diff_chrom_bs[j] <- retro_chrom!=parent_chrom
+  }
+  ref_dist_full_3a[i] <- sum(diff_chrom_bs)/length(retrogenes_final)
+}
+density_full_3a <- density(ref_dist_full_3a)
+
+#make reference distribution for protein coding set
+ref_dist_pc_3a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  diff_chrom_bs <- vector(mode = "logical", length = length(retrogenes_final_pc))
+  #retro_sample <- sample(retrogenes_final_pc, size = length(retrogenes_final_pc), replace = TRUE)
+  for(j in 1:length(retrogenes_final_pc)){
+    retro_chrom <- sample(row.names(dm_genome), size = 1, prob = dm_genome$chrom.size)
+    #parent_chrom <- retro_sample[[j]][[1]]$parentalchrom
+    parent_chrom <- sample(row.names(dm_genome), size = 1, prob = dm_genes_per_chrom$chrom.size)
+    diff_chrom_bs[j] <- retro_chrom!=parent_chrom 
+  }
+  ref_dist_pc_3a[i] <- sum(diff_chrom_bs)/length(retrogenes_final_pc)
+}
+density_pc_3a <- density(ref_dist_pc_3a)
+
+#visualize
+ref_dist_3a_df <- data.frame(num_diff_full = ref_dist_full_3a, num_diff_pc = ref_dist_pc_3a)
+ggplot(ref_dist_3a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = mean(num_diff_full), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of movement away from the parental chromosome (Full)", 
+       x = "Average proportion of genes moving away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_pc)) + 
+  geom_histogram(aes(y = ..density..),
+                position = "identity", 
+                alpha = .5, color = "darkgreen", 
+                fill = "lightgreen") +
+  geom_density(alpha = .6, color = "darkgreen", size = 1, fill = "lightgreen") + 
+  geom_vline(aes(xintercept = mean(num_diff_pc), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of movement away from the parental chromosome (Protein coding only)", 
+       x = "Average proportion of genes moving away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none")
+```
+
+## b) Calculate test statistics
+
+For our test statistics, we want to calculate the statistic we invented above using our sample data.
+```{r}
+#for our full dataset
+diff_chrom_full_3b <- vector(mode = "logical", length = length(retrogenes_final))
+for(i in 1:length(retrogenes_final)){
+  retro_chrom <- retrogenes_final[[i]][[1]]$retrochrom
+  parent_chrom <- retrogenes_final[[i]][[1]]$parentalchrom
+  diff_chrom_full_3b[i] <- retro_chrom!=parent_chrom
+}
+ts_full_3b <- sum(diff_chrom_full_3b)/length(retrogenes_final)
+
+#for protein coding only
+diff_chrom_pc_3b <- vector(mode = "logical", length = length(retrogenes_final_pc))
+for(i in 1:length(retrogenes_final_pc)){
+  retro_chrom <- retrogenes_final_pc[[i]][[1]]$retrochrom
+  parent_chrom <- retrogenes_final_pc[[i]][[1]]$parentalchrom
+  diff_chrom_pc_3b[i] <- retro_chrom!=parent_chrom
+}
+ts_pc_3b <- sum(diff_chrom_pc_3b)/length(retrogenes_final_pc)
+```
+
+## c) Test hypotheses
+
+With our test statistics, we can test our hypotheses. This will be a two tailed test at \(\alpha = .01\). Since our test is non-parametric, this equates to testing both sides at \(.005\)
+
+```{r}
+pval_full_3c <- sum(ref_dist_full_3a>=ts_full_3b)/runs
+pval_pc_3c <- sum(ref_dist_pc_3a>=ts_pc_3b)/runs
+
+
+# plot(density_full_3a, 
+#      main = "Full set test", 
+#      xlab = "% different chrom", 
+#      ylab = "density",
+#      col = 6 )
+# polygon(density_full_3a,
+#         col = rgb(0,0,1,.2))
+# lines(c(ts_full_3b, ts_full_3b),c(-0.05, 120), lwd = 3, col = "blue")
+# text(.96, 100, paste("p = ",pval_full_3c), pos = 4, cex = 1)
+# 
+# plot(density_pc_3a, 
+#      main = "protein coding only", 
+#      xlab = "% different chrom", 
+#      ylab = "density",
+#      col = 9 )
+# polygon(density_pc_3a,
+#         col = rgb(0,.6,.4,.2))
+# lines(c(ts_pc_3b, ts_pc_3b),c(-0.05, 120), lwd = 3, col = "blue")
+# text(.90, 15, paste("p ~ ",pval_pc_3c), pos = 4, cex = 1)
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = ts_full_3b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe a change in chromosome more than expected? (Full)", 
+       x = "Avg. prop. of retrogene movement away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none") + 
+  geom_text(x = .957, y = 100,
+            label = paste("p = ", pval_full_3c))
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_pc)) + 
+  geom_bar(position = "identity", 
+            alpha = .5, color = "darkgreen", 
+            fill = "lightgreen") +
+  geom_vline(aes(xintercept = ts_pc_3b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe a change in chromosome more than expected?", 
+       x = "Avg. prop. of retrogene movement away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none") +
+  geom_text(x = .95, y = 100,
+            label = paste("p = ", pval_pc_3c))
+```
+
+Note that among protein coding genes, there seems to be a trend approaching significance, but not significant under the (lenient) threshold we set. However, keep in mind that opposing forces to increase or decrease linkage may be at work. 
+
+# 4. Second hypothesis test: The retrogenes associated with each parental gene are not randomly distributed in the genome
+
+This hypothesis is similar to the previous one, but instead of looking at individual pairs of retrocopies and parental genes, we look at parental genes and ALL associated retrocopies.
+
+## a) Building reference distributions
+
+As before, we build a reference distribution both for the full set of retrocopies and for the set of retrogenes. We create a statistic avg_sim_dist, which we can denote by \(\delta\). This is the average distance between the parent and its offspring retrocopies. 
+
+```{r}
+#full set
+sim_dists_full_4a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  totdist<- 0
+  for(j in 1:length(retrogenes_by_parentals)){
+    retro_chroms <- retrogenes_by_parentals[[j]]$retrochrom
+    if(length(retro_chroms>0)){
+      sim_rets <- sample(row.names(dm_genome), 
+                         prob = dm_genome$chrom.size, 
+                         size = length(retro_chroms), 
+                         replace = TRUE)
+      sim_ret_locs <- vector(mode = "numeric", length=length(retro_chroms))
+      tot_retro <- length(retro_chroms)
+      for(k in 1:length(sim_rets)){
+        sim_ret_locs[k] <- sample(1:dm_genome$chrom.size[row.names(dm_genome) == sim_rets[k]],
+                                 size = 1)
+      }
+
+      
+      dists <- abs(retrogenes_by_parentals[[j]]$parentalloc - 
+                     sim_ret_locs[sim_rets==retrogenes_by_parentals[[j]]$parentalchrom])/linkage_max
+      dists <- ifelse(dists>.5, yes = .5, no = dists)
+      totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+      totdist <- totdist + totdist_parental
+    }
+  }
+  sim_dists_full_4a[i] = totdist/length(retrogenes_final)
+}
+
+density_full_4a <- density(sim_dists_full_4a)
+
+#for protein coding only
+sim_dists_pc_4a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  totdist<- 0
+  for(j in 1:length(retrogenes_by_parentals_pc)){
+    retro_chroms <- retrogenes_by_parentals_pc[[j]]$retrochrom
+    if(length(retro_chroms>0)){
+      sim_rets <- sample(row.names(dm_genome), 
+                         prob = dm_genome$chrom.size, 
+                         size = length(retro_chroms), 
+                         replace = TRUE)
+      sim_ret_locs <- vector(mode = "numeric", length=length(retro_chroms))
+      tot_retro <- length(retro_chroms)
+      for(k in 1:length(sim_rets)){
+        sim_ret_locs[k] = sample(1:dm_genome$chrom.size[row.names(dm_genome) == sim_rets[k]],
+                                 size = 1)
+      }
+
+      
+      dists <- abs(retrogenes_by_parentals_pc[[j]]$parentalloc - 
+                     sim_ret_locs[sim_rets==retrogenes_by_parentals_pc[[j]]$parentalchrom])/linkage_max
+      dists <- ifelse(dists>.5, yes = .5, no = dists)
+      totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+      totdist <- totdist + totdist_parental
+    }
+  }
+  sim_dists_pc_4a[i] = totdist/length(retrogenes_final_pc)
+}
+
+density_pc_4a <- density(sim_dists_pc_4a)
+
+
+plot(density_full_4a)
+
+plot(density_pc_4a)
+
+```
+
+## b) Calculating our test statistics
+
+We calculate the above statistic, \(\delta\), using our data.
+
+```{r}
+#for full set
+totdist <- 0
+for(i in 1:length(retrogenes_by_parentals)){
+  retro_chroms <- retrogenes_by_parentals[[i]]$retrochrom
+  retro_locs <- retrogenes_by_parentals[[i]]$retroloc
+  tot_retro <- length(retro_chroms)
+  
+  dists <- abs(retrogenes_by_parentals[[i]]$parentalloc - retro_locs[retro_chroms == retrogenes_by_parentals[[i]]$parentalchrom])/linkage_max
+  dists <- ifelse(dists>.5, yes = .5, no = dists)
+  totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+  totdist <- totdist + totdist_parental
+}
+ts_full_4b <- totdist/length(retrogenes_final)
+
+
+#full set with recmap
+totdist <- 0
+for(i in 1:length(retrogenes_by_parentals)){
+  retro_chroms <- retrogenes_by_parentals[[i]]$retrochrom
+  retro_locs <- retrogenes_by_parentals[[i]]$retroloc
+  tot_retro <- length(retro_chroms)
+  
+  ret_locs_same <- retro_locs[retro_chroms == retrogenes_by_parentals[[i]]$parentalchrom]
+  dists <- vector(mode = "numeric", length = length(ret_locs_same))
+  if(length(ret_locs_same)){
+    dists <- sapply(chr = retrogenes_by_parentals[[i]]$parentalchrom, 
+                    loc1 = retrogenes_by_parentals[[i]]$parentalloc, 
+                    X = ret_locs_same, 
+                    FUN = find_dist)
+    dists <- ifelse(dists>50, yes = .50, no = dists/100)
+  }
+  totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+  totdist <- totdist + totdist_parental
+}
+ts_full_rec_4b <- totdist/length(retrogenes_final)
+
+#pc
+totdist<- 0
+for(i in 1:length(retrogenes_by_parentals_pc)){
+  retro_chroms <- retrogenes_by_parentals_pc[[i]]$retrochrom
+  retro_locs <- retrogenes_by_parentals_pc[[i]]$retroloc
+  tot_retro <- length(retro_chroms)
+  
+  dists <- abs(retrogenes_by_parentals_pc[[i]]$parentalloc - retro_locs[retro_chroms == retrogenes_by_parentals_pc[[i]]$parentalchrom])/linkage_max
+  dists <- ifelse(dists>.5, yes = .5, no = dists)
+  totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+  totdist <- totdist + totdist_parental
+}
+ts_pc_4b <- totdist/length(retrogenes_final_pc)
+
+#pc with rec map
+totdist <- 0
+for(i in 1:length(retrogenes_by_parentals_pc)){
+  retro_chroms <- retrogenes_by_parentals_pc[[i]]$retrochrom
+  retro_locs <- retrogenes_by_parentals_pc[[i]]$retroloc
+  tot_retro <- length(retro_chroms)
+  
+  ret_locs_same <- retro_locs[retro_chroms == retrogenes_by_parentals_pc[[i]]$parentalchrom]
+  dists <- vector(mode = "numeric", length = length(ret_locs_same))
+  if(length(ret_locs_same)){
+    dists <- sapply(chr = retrogenes_by_parentals_pc[[i]]$parentalchrom, 
+                    loc1 = retrogenes_by_parentals_pc[[i]]$parentalloc, 
+                    X = ret_locs_same, 
+                    FUN = find_dist)
+    dists <- ifelse(dists>50, yes = .50, no = dists/100)
+  }
+  totdist_parental <- (sum(dists) + (tot_retro-length(dists))*.5)
+  totdist <- totdist + totdist_parental
+}
+ts_pc_rec_4b <- totdist/length(retrogenes_final_pc)
+```
+
+## c) Test hypothesis
+
+Using our test statistics, we can compare to reference and obtain p-values as before.
+
+```{r}
+pval_full_4c <- sum(sim_dists_full_4a>=ts_full_4b)/runs
+pval_full_rec_4c <- sum(sim_dists_full_rec_4a>=ts_full_rec_4b)/runs
+pval_pc_4c <- sum(sim_dists_pc_4a>=ts_pc_4b)/runs
+pval_pc_rec_4c <- sum(sim_dists_pc_rec_4a>=ts_pc_rec_4b)/runs
+
+
+plot(density_full_4a, 
+     xlim = c(.492, .5),
+     main = "Full set test", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 6 )
+polygon(density_full_4a,
+        col = rgb(0,0,1,.2))
+lines(c(ts_full_4b, ts_full_4b),c(-0.05, 400), lwd = 3, col = "blue")
+text(.494, 350, paste("p = ",pval_full_4c), pos = 4, cex = 1)
+
+plot(density_full_rec_4a, 
+     xlim = c(.492, .5),
+     main = "Full set test", 
+     xlab = "average genetic distance", 
+     ylab = "density",
+     col = 6 )
+polygon(density_full_rec_4a,
+        col = rgb(0,0,1,.2))
+lines(c(ts_full_rec_4b, ts_full_rec_4b),c(-0.05, 400), lwd = 3, col = "blue")
+text(.494, 350, paste("p = ",pval_full_4c), pos = 4, cex = 1)
+
+plot(density_pc_4a, 
+     main = "protein coding only", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 9 )
+polygon(density_pc_4a,
+        col = rgb(0,.6,.4,.2))
+lines(c(ts_pc_4b, ts_pc_4b),c(-0.05, 150), lwd = 3, col = "blue")
+text(.485, 130, paste("p ~ ",pval_pc_4c), pos = 4, cex = 1)
+
+plot(density_pc_rec_4a, 
+     main = "protein coding only", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 9 )
+polygon(density_pc_rec_4a,
+        col = rgb(0,.6,.4,.2))
+lines(c(ts_pc_rec_4b, ts_pc_rec_4b),c(-0.05, 150), lwd = 3, col = "blue")
+text(.485, 80, paste("p ~ ",pval_pc_4c), pos = 4, cex = 1)
+```
+
+
+# 5. Hypothesis test 3: Retrogenes are not randomly distributed with respect to their nearest network partner
+
+This hypothesis incorporates information that we have about network partners for each of the parental genes. We formulate the null that retrogenes are randomly dispersed in the genome without regards to proximity to network partners. 
+
+## a) Constructing reference distributions
+
+For this hypothesis, we construct reference distributions around a statistic \(\eta\) which denotes the minimum distance to a network partner for a retrogene. 
+
+```{r}
+ref_dist_full_5a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  delta_dists_sim <- vector(mode = "numeric", length = length(retrogenes_final))
+  for(j in 1:length(retrogenes_final)){
+    par_chrom <- retrogenes_final[[j]][[1]]$parentalchrom 
+    par_loc <- retrogenes_final[[j]][[1]]$parentalloc
+    part_chroms <- retrogenes_final[[j]][[1]]$partnerchroms
+    part_locs <- retrogenes_final[[j]][[1]]$partnerlocs
+    
+    all_chroms <- c(par_chrom, part_chroms)
+    all_locs <- c(par_loc, part_locs)
+    
+    sim_ret_chrom <- sample(row.names(dm_genome), 
+                            prob = dm_genome$chrom.size,
+                            size = 1)
+    sim_ret_loc <- sample(1:dm_genome_h$chrom.size[row.names(dm_genome) == sim_ret_chrom], size = 1)
+    mindist <- ifelse(sim_ret_chrom%in% all_chroms,
+                      yes =  min(abs(all_locs[sim_ret_chrom == all_chroms] - sim_ret_loc))/linkage_max,
+                      no =.5)
+    
+    delta_dists_sim[j] <- mindist
+  }
+  ref_dist_full_5a[i] <- mean(delta_dists_sim)
+}
+density_full_5a <- density(ref_dist_full_5a)
+
+
+ref_dist_pc_5a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  delta_dists_sim <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+  for(j in 1:length(retrogenes_final_pc)){
+    par_chrom <- retrogenes_final_pc[[j]][[1]]$parentalchrom 
+    par_loc <- retrogenes_final_pc[[j]][[1]]$parentalloc
+    part_chroms <- retrogenes_final_pc[[j]][[1]]$partnerchroms
+    part_locs <- retrogenes_final_pc[[j]][[1]]$partnerlocs
+    
+    all_chroms <- c(par_chrom, part_chroms)
+    all_locs <- c(par_loc, part_locs)
+    
+    sim_ret_chrom <- sample(row.names(dm_genome), 
+                            prob = dm_genome$chrom.size,
+                            size = 1)
+    sim_ret_loc <- sample(1:dm_genome_h$chrom.size[row.names(dm_genome) == sim_ret_chrom],
+                          size = 1)
+    
+    mindist <- ifelse(sim_ret_chrom %in% all_chroms,
+                      yes = min(abs(all_locs[sim_ret_chrom == all_chroms] - sim_ret_loc))/linkage_max,
+                      no = .5)
+    
+    delta_dists_sim[j] <- mindist
+  }
+  ref_dist_pc_5a[i] <- mean(delta_dists_sim)
+}
+density_pc_5a <- density(ref_dist_pc_5a)
+
+ref_dist_mixed_5a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  delta_dists_sim <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+  for(j in 1:length(retrogenes_final_pc)){
+    k <- sample(1:length(retrogenes_final), size = 1)
+    par_chrom <- retrogenes_final[[k]][[1]]$parentalchrom 
+    par_loc <- retrogenes_final[[k]][[1]]$parentalloc
+    part_chroms <- retrogenes_final[[k]][[1]]$partnerchroms
+    part_locs <- retrogenes_final[[k]][[1]]$partnerlocs
+    
+    all_chroms <- c(par_chrom, part_chroms)
+    all_locs <- c(par_loc, part_locs)
+    
+    sim_ret_chrom <- sample(row.names(dm_genome), 
+                            prob = dm_genome$chrom.size,
+                            size = 1)
+    sim_ret_loc <- sample(1:dm_genome_h$chrom.size[row.names(dm_genome) == sim_ret_chrom],
+                          size = 1)
+    
+    mindist <- ifelse(sim_ret_chrom %in% all_chroms,
+                      yes = min(abs(all_locs[sim_ret_chrom == all_chroms] - sim_ret_loc))/linkage_max,
+                      no = .5)
+    
+    delta_dists_sim[j] <- mindist
+  }
+  ref_dist_mixed_5a[i] <- mean(delta_dists_sim)
+}
+density_mixed_5a <- density(ref_dist_mixed_5a)
+
+plot(density_full_5a)
+plot(density_pc_5a)
+plot(density_mixed_5a)
+hist(ref_dist_pc_5a)
+
+```
+
+
+## b) Calculating test statistics
+
+We calculate the test statistic \(\eta = \frac{\sum^{all\,x}min\{ dist(x,y): y\in A\}}{n}\) where \(x\) is the retrogene and \(A\) is the union of the parental gene and the set of network genes.
+
+```{r}
+dists <- vector(mode = "numeric", length = length(retrogenes_final))
+for(i in 1:length(retrogenes_final)){
+    par_chrom <- retrogenes_final[[i]][[1]]$parentalchrom 
+    par_loc <- retrogenes_final[[i]][[1]]$parentalloc
+    part_chroms <- retrogenes_final[[i]][[1]]$partnerchroms
+    part_locs <- retrogenes_final[[i]][[1]]$partnerlocs
+    
+    all_chroms <- c(par_chrom, part_chroms)
+    all_locs <- c(par_loc, part_locs)
+    
+    ret_chrom <- retrogenes_final[[i]][[1]]$retrochrom
+    ret_loc <- retrogenes_final[[i]][[1]]$retroloc
+    mindist <- ifelse(ret_chrom%in% all_chroms,
+                      yes =  min(abs(all_locs[ret_chrom == all_chroms] - ret_loc))/linkage_max,
+                      no =.5)
+    dists[i] <- mindist
+}
+ts_full_5b <- mean(dists)
+
+dists_pc <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+for(i in 1:length(retrogenes_final_pc)){
+    par_chrom <- retrogenes_final_pc[[i]][[1]]$parentalchrom 
+    par_loc <- retrogenes_final_pc[[i]][[1]]$parentalloc
+    part_chroms <- retrogenes_final_pc[[i]][[1]]$partnerchroms
+    part_locs <- retrogenes_final_pc[[i]][[1]]$partnerlocs
+    
+    all_chroms <- c(par_chrom, part_chroms)
+    all_locs <- c(par_loc, part_locs)
+    
+    ret_chrom <- retrogenes_final_pc[[i]][[1]]$retrochrom
+    ret_loc <- retrogenes_final_pc[[i]][[1]]$retroloc
+    mindist <- ifelse(ret_chrom%in% all_chroms,
+                      yes =  min(abs(all_locs[ret_chrom == all_chroms] - ret_loc))/linkage_max,
+                      no =.5)
+    dists_pc[i] <- mindist
+}
+ts_pc_5b <- mean(dists_pc)
+
+dists_mixed <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+for(i in 1:length(retrogenes_final_pc)){
+  par_chrom <- retrogenes_final_pc[[i]][[1]]$parentalchrom 
+  par_loc <- retrogenes_final_pc[[i]][[1]]$parentalloc
+  part_chroms <- retrogenes_final_pc[[i]][[1]]$partnerchroms
+  part_locs <- retrogenes_final_pc[[i]][[1]]$partnerlocs
+  
+  all_chroms <- c(par_chrom, part_chroms)
+  all_locs <- c(par_loc, part_locs)
+    
+  ret_chrom <- retrogenes_final_pc[[i]][[1]]$retrochrom
+  ret_loc <- retrogenes_final_pc[[i]][[1]]$retroloc
+  mindist <- ifelse(ret_chrom%in% all_chroms,
+                    yes =  min(abs(all_locs[ret_chrom == all_chroms] - ret_loc))/linkage_max,
+                    no =.5)
+  dists_mixed[i] <- mindist  
+}
+ts_mixed_5b<- mean(dists_mixed)
+
+
+noX_indices <- c()
+for(i in 1:length(retrogenes_final_pc)){
+  if(retrogenes_final_pc[[i]][[1]]$parentalchrom == "X"){
+    noX_indices <- c(noX_indices, i)
+  }
+}
+retrogenes_final_pc_noX <- retrogenes_final_pc[-noX_indices]
+dists_mixed_noX <- vector(mode = "numeric", length = length(retrogenes_final_pc_noX))
+for(i in 1:length(retrogenes_final_pc_noX)){
+  par_chrom <- retrogenes_final_pc_noX[[i]][[1]]$parentalchrom 
+  par_loc <- retrogenes_final_pc_noX[[i]][[1]]$parentalloc
+  part_chroms <- retrogenes_final_pc_noX[[i]][[1]]$partnerchroms
+  part_locs <- retrogenes_final_pc_noX[[i]][[1]]$partnerlocs
+  
+  all_chroms <- c(par_chrom, part_chroms)
+  all_locs <- c(par_loc, part_locs)
+    
+  ret_chrom <- retrogenes_final_pc_noX[[i]][[1]]$retrochrom
+  ret_loc <- retrogenes_final_pc_noX[[i]][[1]]$retroloc
+  mindist <- ifelse(ret_chrom%in% all_chroms,
+                    yes =  min(abs(all_locs[ret_chrom == all_chroms] - ret_loc))/linkage_max,
+                    no =.5)
+  dists_mixed_noX[i] <- mindist  
+}
+ts_mixed_noX_5b<- mean(dists_mixed_noX)
+
+```
+
+## c) Test hypothesis
+
+Using our test statistics, we can compare to reference and obtain p-values as before.
+
+```{r}
+pval_full_5c <- sum(ref_dist_full_5a>=ts_full_5b)/runs
+pval_pc_5c <- sum(ref_dist_pc_5a>=ts_pc_5b)/runs
+pval_mixed_5c <- sum(ref_dist_mixed_5a <= ts_pc_5b)/runs
+pval_mixed_noX_5c <- sum(ref_dist_mixed_5a <= ts_mixed_noX_5b)/runs
+
+
+plot(density_full_5a, 
+     xlim = c(.47, .51),
+     main = "Full set test", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 6 )
+polygon(density_full_5a,
+        col = rgb(0,0,1,.2))
+lines(c(ts_full_5b, ts_full_5b),c(-0.05, 100), lwd = 3, col = "blue")
+text(.504, 80, paste("p = ",pval_full_5c), pos = 4, cex = 1)
+
+plot(density_pc_5a, 
+     main = "Are retrogenes randomly distributed with respect to their nearest network partner?", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 9 )
+polygon(density_pc_5a,
+        col = rgb(0,.6,.4,.2))
+lines(c(ts_pc_5b, ts_pc_5b),c(-0.05, 20), lwd = 3, col = "blue")
+text(.485, 10, paste("p ~ ",pval_pc_5c), pos = 4, cex = 1)
+
+plot(density_mixed_5a, 
+     xlim = c(.40, .55),
+     main = "mixed", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 9 )
+polygon(density_mixed_5a,
+        col = rgb(0,.6,.4,.2))
+lines(c(ts_pc_5b, ts_pc_5b),c(-0.05, 100), lwd = 3, col = "blue")
+text(.410, 10, paste("p ~ ",pval_mixed_5c), pos = 4, cex = 1)
+
+plot(density_mixed_5a, 
+     xlim = c(.40, .55),
+     main = "mixed, no X", 
+     xlab = "average distance", 
+     ylab = "density",
+     col = 9 )
+polygon(density_mixed_5a,
+        col = rgb(0,.6,.4,.2))
+lines(c(ts_mixed_noX_5b, ts_mixed_noX_5b),c(-0.05, 100), lwd = 3, col = "blue")
+text(.410, 10, paste("p ~ ",pval_mixed_noX_5c), pos = 4, cex = 1)
+```
