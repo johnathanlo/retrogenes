@@ -1,0 +1,796 @@
+---
+title: "Short Report 1"
+author: "Johnathan Lo"
+date: "3/14/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("~/FALL20/Retrogenes")
+load("1-17.RData") #complete dataset made on 1-17
+runs=1000 #set # runs for simulations and bootstraps
+linkage_max <- 100000000
+set.seed(6)
+library(dplyr)
+library(rentrez)
+library(chromPlot)
+library(GenomicFeatures)
+library(ggplot2)
+library(reshape2)
+```
+
+# Introduction
+
+Retrogenes are a type of genetic element that results from RNA-mediated gene duplication (RMGD) that play an important role in evolution and diversification on the tree of life. Retrogenes contribute to evolution by acting as an evolutionary substrate for heritable changes to occur. The process of RMGD results in a new copy of some parental gene that is devoid of some of the molecular, functional, and regulatory constraints of the parental gene. The vast majority of such copies are non-functional and end up being lost with time, and only a few of these copies acquire function and become retrogenes. Henceforth, the term 'retrocopies' will be used to refer to the general class of RMGDs while 'retrogene' will be used to refer specifically to retrocopies that have acquired function or appear to otherwise be conserved across evolutionary time.
+  
+Prior studies on retrogenes have primarily focused on individual examples with functional ramifications in important model systems, i.e. human, mouse, and fruit fly. Few characterizations of the overall pattern of retrogene formation with respect to genomic, organismal, and ecological factors have been conducted. One of the only exceptions to this is the out-of-the-X pattern of retrogenes that is observed in several model organisms. This is a pattern in which retrogenes appear to originate from the X chromosome more often than would be expected by random chance. The proximate cause of this phenomenon has been hypothesized to be meiotic sex chromosome inactivation. This is a biological process that inhibits the expression of sex-linked genes during the production of gametes.
+  
+With more genetic data available than ever before, it has become feasible to characterize patterns of retrogene evolution on a broad scale, both within and across taxa. Our aim in this particular investigation is to understand if linkage affects retrogene formation and conservation. In this short report, we discuss data collection, exploratory data analysis, dataset validation using known results, and a preliminary exploration of our hypothesis. Additional details about this project, including references, can be found in the proposal materials. 
+
+# 1. Data collection and EDA
+
+## a) Data Collection
+
+Data is collected from http://yeti.amu.edu.pl/retrogenedb/ and http://www.regnetworkweb.org/home.jsp. Statistics for human genome size/chromosome size collected from NCBI. Below we can view the distribution of retrocopies across the human genome. 
+
+
+```{r, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap= "Distribution of retrogenes across the human genome"}
+#human genome chromosome sizes in bp
+human_genome <- data.frame(row.names = c(1:22, "X", "Y"), chrom.size = c(248956422,
+                                                                         242193529,
+                                                                         198295559,
+                                                                         190214555,
+                                                                         181538259,
+                                                                         170805970,
+                                                                         159345973,
+                                                                         145138636,
+                                                                         138394717,
+                                                                         133797422,
+                                                                         135086622,
+                                                                         133275309,
+                                                                         114364328,
+                                                                         107043718,
+                                                                         101991189,
+                                                                         90338345,
+                                                                         83257441,
+                                                                         80373285,
+                                                                         58617616,
+                                                                         64444167,
+                                                                         46709983,
+                                                                         50818468,
+                                                                         156040895,
+                                                                         57227415))
+#double the autosomes; this helps create a representative "area" for uniformly distributing random retrogene activity
+human_genome[,1] <- human_genome[,1]*c(rep(2,22),1.5,1)
+
+#next, a haploid version of the genome; to maintain a record and help calculate genetic distance
+human_genome_h <- data.frame(row.names = c(1:22, "X", "Y"), chrom.size = c(248956422, 
+                                                                         242193529,
+                                                                         198295559,
+                                                                         190214555,
+                                                                         181538259,
+                                                                         170805970,
+                                                                         159345973,
+                                                                         145138636,
+                                                                         138394717,
+                                                                         133797422,
+                                                                         135086622,
+                                                                         133275309,
+                                                                         114364328,
+                                                                         107043718,
+                                                                         101991189,
+                                                                         90338345,
+                                                                         83257441,
+                                                                         80373285,
+                                                                         58617616,
+                                                                         64444167,
+                                                                         46709983,
+                                                                         50818468,
+                                                                         156040895,
+                                                                         57227415))
+
+#approximate genes per chromosome for humans
+human_genes_per_chrom <- data.frame(row.names = c(1:22, "X", "Y"), chrom.size = c(3000,
+                                                                                  2500,
+                                                                                  1900,
+                                                                                  1600,
+                                                                                  1700,
+                                                                                  1900,
+                                                                                  1800,
+                                                                                  1400,
+                                                                                  1400,
+                                                                                  1400,
+                                                                                  2000,
+                                                                                  1600,
+                                                                                  800,
+                                                                                  1200,
+                                                                                  1200,
+                                                                                  1300,
+                                                                                  1600,
+                                                                                  600,
+                                                                                  1700,
+                                                                                  900,
+                                                                                  400,
+                                                                                  800,
+                                                                                  1400,
+                                                                                  200))
+
+#read in retrogene data
+retrogenes <- read.csv("homo_sapiens_retrogene.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+parentals <- read.csv("homo_sapiens_parental.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+human_rec_map <- read.csv("human-recombination-map.csv")
+#assign to variables for convenience
+parental_genes <- parentals$symbol
+parental_ids <- parentals$external_id
+
+
+#get GRN data
+grns <- read.csv("human-grn/human.source", sep = "\t", header = FALSE, stringsAsFactors = FALSE)
+
+
+#plot chrom data
+data("hg_gap")
+retrogenes$Colors <- "red"
+retrogenes_plot <- retrogenes
+retrogenes_plot$Chrom <- retrogenes_plot$chromosome
+retrogenes_plot$Start <- retrogenes_plot$start
+retrogenes_plot$End <- retrogenes_plot$end+300000
+retrogenes_plot$Name <- retrogenes_plot$retrodb_id
+retrogenes_plot <- retrogenes_plot[retrogenes_plot$Chrom %in% c(1:22, "X", "Y"),]
+retrogenes_plot$Chrom <- paste("chr", retrogenes_plot$chromosome, sep = "")
+retrogenes_plot <- retrogenes_plot[,c("Chrom", "Start", "End", "Name","Colors")]
+chromPlot(gaps = hg_gap, bands = retrogenes_plot)
+
+```
+\pagebreak
+
+## b) Organizing data
+
+We want to arrange the data into two datasets: 
+    
+1) Retrocopies as observations, each associated with corresponding parental gene and network partners
+    
+2) Parental genes as observations, each associated with corresponding retrocopies and network partners
+
+In addition to this, it is also useful to subset each of the above to form datasets composed only of known retrogenes. This way, we can understand and distinguish between effects that apply broadly to retrocopies and effects specific to retrogenes. However, it is important to remember that this subset may not be comprehensive, as not every retrocopy has been thoroughly investigated for function or conservedness. 
+
+  The structure of the data presents a few challenges. Most notably, each retrocopy is associated with multiple network partners. The total number of network partners is larger than the number of retrocopies, but it does not make sense to organize the dataset by network partners. One solution would be to place network partners into vectors. We instead opted to use a list of lists structure for the data. Under this structure, each top level item in the list is either a retrocopy or a parental gene, and lower levels contain information about associated genes.
+
+In this way, each observation can be characterized as a variably-sized cluster or collection of genes. As such, these foundational datasets will be formed as lists of lists; each observation is itself a list of other associated genes. The key parameters that need to be included with each gene are:
+
+a) ID
+
+b) chromosome
+
+c) location on chromosome
+
+```{r, results="hide", message= FALSE, warning= FALSE}
+#First, go through list of parental genes to find network partners
+#use a list, because the number of partner genes per parental gene is variable
+partners <- vector(mode = "list", length = length(parental_genes))
+partners_ids <- vector(mode = "list", length = length(parental_genes))
+for(i in 1:length(parental_genes)){
+  partners[[i]] <- grns$V1[grns$V3 == parental_genes[i]]
+  partners_ids[[i]] <- grns$V2[grns$V3 == parental_genes[i]]
+}
+
+#Next, parse out miRNA ids; these cannot be tracked through entrez
+#Do this by removing IDs starting with "MI"
+partners_ids_clean <-vector(mode = "list", length = length(partners_ids))
+partners_clean <- vector(mode="list", length = length(partners_ids))
+for(i in 1:length(partners_ids)){
+  partners_ids_clean[[i]] <- partners_ids[[i]][!grepl("MI", partners_ids[[i]], fixed = TRUE)]
+  partners_clean[[i]] <- partners[[i]][!grepl("MI", partners_ids[[i]], fixed = TRUE)]
+}
+
+#previous step resulted in empty indices; here we clean them out
+empty_inds <- which(lapply(partners_clean, length)==0)
+partners_ids_final <- partners_ids_clean[-empty_inds]
+partners_final <- partners_clean[-empty_inds]
+parentals_final <- parentals[-empty_inds,]
+parental_genes_final <- parental_genes[-empty_inds]
+parental_ids_final <- parental_ids[-empty_inds]
+parental_chrom_final <- parentals_final$chromosome
+parental_loc_final <- parentals_final$start
+
+#Finally, we're ready to search NCBI for the remaining partner IDs. Uses rentrez package.
+#For convenience, the below code is commented out and instead, we load from memory
+# partners_records <- vector(mode = "list", length = length(partners_ids_final)) 
+# for(i in 1:length(partners_ids_final)){
+#   partners_records[[i]] <- vector(mode = "list", length = length(partners_ids_final[[i]]))
+#   for(j in 1:length(partners_ids_final[[i]])){
+#     try(partners_records[[i]][[j]] <- entrez_summary(db = "gene", id = partners_ids_final[[i]][j])) 
+#   }
+# }
+load("partners_records.RData")
+
+#We are ready to start building our final datasets.
+
+#Here, we go through the list we retrieved from NCBI and extract genomic coordinates for each of the partner genes
+partners_chrom <- vector(mode = "list", length = length(partners_records))
+partners_chrom_loc <- vector(mode = "list", length = length(partners_records))
+for(i in 1:length(partners_records)){
+  partners_chrom[[i]] <- vector(mode = "character", length = length(partners_records[[i]]))
+  partners_chrom_loc[[i]] <- vector(mode = "numeric", length = length(partners_records[[i]]))
+  for(j in 1:length(partners_records[[i]])){
+    partners_chrom[[i]][j] <- partners_records[[i]][[j]]$genomicinfo$chrloc
+    partners_chrom_loc[[i]][j] <- partners_records[[i]][[j]]$genomicinfo$chrstart
+  }
+}
+
+#Construct retrogenes_final - the dataset arranged by retrogenes
+retrogenes_final <- vector(mode = "list", length = length(retrogenes))
+for(i in 1:nrow(retrogenes)){
+  indices <- grep(retrogenes$parental_accession[i], parental_ids_final)
+  retrogenes_final[[i]] <- vector(mode = "list", length = length(indices))
+  if(length(indices)>0){
+    for(j in 1:length(indices)){
+      ret_id <- retrogenes$retrodb_id[i]
+      ret_chrom <- retrogenes$chromosome[i]
+      ret_loc <- retrogenes$start[i]
+      par_gene <- parental_genes_final[indices[j]]
+      par_id <- parental_ids_final[indices[j]]
+      par_chrom <- parental_chrom_final[indices[j]]
+      par_loc <- parental_loc_final[indices[j]]
+      part_genes <- partners_final[[indices[j]]]
+      part_ids <- partners_ids_final[[indices[j]]]
+      part_chroms <- partners_chrom[[indices[j]]]
+      part_locs <- partners_chrom_loc[[indices[j]]]
+      retrogenes_final[[i]][[j]] <- list(retroid = ret_id,
+                                         retrochrom = ret_chrom,
+                                         retroloc = ret_loc,
+                                         parentalgene = par_gene,
+                                         parentalid = par_id,
+                                         parentalchrom = par_chrom,
+                                         parentalloc = par_loc,
+                                         partnergenes = part_genes,
+                                         partnerids = part_ids,
+                                         partnerchroms = part_chroms,
+                                         partnerlocs = part_locs)
+    }
+  }
+}
+retrogenes_final <- retrogenes_final[lapply(retrogenes_final,length)!=0] #remove empty indices again; necessary because not every retrogene has a corresponding parental and/or partners in our miRNA removed dataset
+
+#This is an exclusive list with just known protein coding retrogenes. 
+retrogenes_pc <- retrogenes[retrogenes$status == "KNOWN_PROTEIN_CODING",]
+retrogenes_final_pc <- list()
+for(i in 1:length(retrogenes_final)){
+  if(retrogenes_final[[i]][[1]]$retroid %in% retrogenes_pc$retrodb_id){
+    retrogenes_final_pc <- c(retrogenes_final_pc, retrogenes_final[i])
+  }
+}
+
+
+#Now, construct second dataset - organized by parental genes
+retrogenes_by_parentals <- vector(mode = "list", length = length(parental_genes_final))
+for(i in 1:length(parental_genes_final)){
+  indices <- grep(parental_ids_final[[i]], retrogenes$parental_accession)
+  par_gene <- parental_genes_final[i]
+  par_id <- parental_ids_final[i]
+  par_chrom <- parental_chrom_final[i]
+  par_loc <- parental_loc_final[i]
+  part_genes <- partners_final[[i]]
+  part_ids <- partners_ids_final[[i]]
+  part_chroms <- partners_chrom[[i]]
+  part_locs <- partners_chrom_loc[[i]]
+  retro_ids <- retrogenes[indices,]$retrodb_id
+  retro_chroms <- retrogenes[indices,]$chromosome
+  retro_locs <- retrogenes[indices,]$start
+  
+  retrogenes_by_parentals[[i]] <- list(retroid = retro_ids,
+                                       retrochrom = retro_chroms,
+                                       retroloc = retro_locs,
+                                       parentalgene = par_gene,
+                                       parentalid = par_id,
+                                       parentalchrom = par_chrom,
+                                       parentalloc = par_loc,
+                                       partnergenes = part_genes,
+                                       partnerids = part_ids,
+                                       partnerchroms = part_chroms,
+                                       partnerlocs = part_locs)
+}
+#Again, make a subset of just those parental genes producing protein coding retrogenes
+retrogenes_by_parentals_pc <- vector(mode = "list", length = length(parental_genes_final))
+for(i in 1:length(parental_genes_final)){
+  indices <- grep(parental_ids_final[[i]], retrogenes_pc$parental_accession)
+  if(length(indices)>0){
+    par_gene <- parental_genes_final[i]
+    par_id <- parental_ids_final[i]
+    par_chrom <- parental_chrom_final[i]
+    par_loc <- parental_loc_final[i]
+    part_genes <- partners_final[[i]]
+    part_ids <- partners_ids_final[[i]]
+    part_chroms <- partners_chrom[[i]]
+    part_locs <- partners_chrom_loc[[i]]
+    retro_ids <- retrogenes_pc[indices,]$retrodb_id
+    retro_chroms <- retrogenes_pc[indices,]$chromosome
+    retro_locs <- retrogenes_pc[indices,]$start
+    
+    retrogenes_by_parentals_pc[[i]] <- list(retroid = retro_ids,
+                                            retrochrom = retro_chroms,
+                                            retroloc = retro_locs,
+                                            parentalgene = par_gene,
+                                            parentalid = par_id,
+                                            parentalchrom = par_chrom,
+                                            parentalloc = par_loc,
+                                            partnergenes = part_genes,
+                                            partnerids = part_ids,
+                                            partnerchroms = part_chroms,
+                                            partnerlocs = part_locs)
+  }
+}
+retrogenes_by_parentals_pc <- retrogenes_by_parentals_pc[-which(sapply(retrogenes_by_parentals_pc, is.null))]
+
+find_dist <- function(chr, loc1, loc2){
+  if(chr %in% c("X", "Y")){
+    chr = "23"
+  }
+  rec_chrom <- human_rec_map[human_rec_map$chr == chr, ]
+  loc1_match <- human_rec_map[which.min(abs(loc1 - rec_chrom$phys.loc)),] 
+  loc2_match <- human_rec_map[which.min(abs(loc2 - rec_chrom$phys.loc)),]
+  rec_dist <- as.numeric(abs(loc1_match$gen.loc - loc2_match$gen.loc))
+  return(rec_dist)
+}
+
+#Here are the final datasets:
+# head(retrogenes_final)
+# head(retrogenes_final_pc)
+# head(retrogenes_by_parentals)
+# head(retrogenes_by_parentals_pc)
+```
+
+## c) Exploratory Data Analysis
+
+One aspect of this data that could be interesting to look at is the distribution of the number of retrogenes generated by each of the parental genes in our dataset. Do some parental genes generate more retrogenes than others? Is this distribution symmetric or skewed? Are there differences between the parental genes of protein coding retrogenes and the parental genes of full set of retrogenes?
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap= "Do some parental genes generate more retrogenes than others?"}
+#for full set of retrogenes
+num_ret_per_par <- vector(mode = "numeric", length = length(retrogenes_by_parentals))
+for(i in 1:length(retrogenes_by_parentals)){
+  num_ret_per_par[i] <- length(retrogenes_by_parentals[[i]]$retroid)
+}
+num_ret_per_par <- data.frame(num_rets =  num_ret_per_par)
+ggplot(num_ret_per_par, aes(x=num_rets)) + 
+  geom_histogram(binwidth = 1) +
+  labs(title = "Number of retrocopies per parental gene", x = "Number of retrocopies", y = "Count") +
+  geom_text(x = 25, y = 600, 
+            label = paste("Median: ", median(num_ret_per_par$num_rets)), hjust = 0) + 
+  geom_text(x = 25, y = 400, 
+            label = paste("Mean: ", round(mean(num_ret_per_par$num_rets), digits = 3)), hjust = 0)+
+  theme_classic()
+
+#for protein coding retrogenes
+num_ret_per_par_pc <- vector(mode = "numeric", length = length(retrogenes_by_parentals_pc))
+for(i in 1:length(retrogenes_by_parentals_pc)){
+  num_ret_per_par_pc[i] <- length(retrogenes_by_parentals_pc[[i]]$retroid)
+}
+num_ret_per_par_pc <- data.frame(num_rets = num_ret_per_par_pc)
+ggplot(num_ret_per_par_pc, aes(x=factor(num_rets))) + 
+  geom_histogram(stat = "count") +
+  labs(title = "Number of retrogenes per parental gene \n that has produced retrogenes", x = "Number of retrogenes", y = "Count") +
+  geom_text(x = 2, y = 40, 
+            label = paste("Median: ", median(num_ret_per_par_pc$num_rets)), hjust = 0) + 
+  geom_text(x = 2, y = 20, 
+            label = paste("Mean: ", round(mean(num_ret_per_par_pc$num_rets), digits = 3)), hjust = 0)  +
+  scale_x_discrete() +
+  theme_classic()
+
+```
+Interestingly, there are a few parental genes that appear to be responsible for a large number of retrocopies. It may be insightful to investigate whether this increase in RMGD activity correlates with tissue-specific gene expression. 
+
+\pagebreak
+We can also revisit the chromosome plots, this time looking at the distribution of parental genes across the genome as well as retrogenes only.
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap= "Distribution of parental genes and retrogenes across the human genome"}
+parental_genes_names <- vector(mode = "character", length = length(retrogenes_by_parentals))
+parental_genes_chrom <- vector(mode = "character", length = length(retrogenes_by_parentals))
+parental_genes_start <- vector(mode = "numeric", length = length(retrogenes_by_parentals))
+parental_genes_end <- vector(mode = "numeric", length = length(retrogenes_by_parentals))
+for(i in 1:length(retrogenes_by_parentals)){
+  parental_genes_names[i] <- retrogenes_by_parentals[[i]]$parentalid
+  parental_genes_chrom[i] <- retrogenes_by_parentals[[i]]$parentalchrom
+  parental_genes_start[i] <- retrogenes_by_parentals[[i]]$parentalloc 
+  parental_genes_end[i] <- retrogenes_by_parentals[[i]]$parentalloc+300000
+}
+parental_genes_chromplot <- data.frame(Name = parental_genes_names,
+                                       Chrom = parental_genes_chrom,
+                                       Start = parental_genes_start,
+                                       End = parental_genes_end,
+                                       Colors = rep("blue", times = length(retrogenes_by_parentals)))
+chromPlot(gaps = hg_gap, segment = parental_genes_chromplot, title = "Parental genes") 
+
+##protein coding retrogenes only
+pc_genes_names <- vector(mode = "character", length = length(retrogenes_final_pc))
+pc_genes_chrom <- vector(mode = "character", length = length(retrogenes_final_pc))
+pc_genes_start <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+pc_genes_end <- vector(mode = "numeric", length = length(retrogenes_final_pc))
+for(i in 1:length(retrogenes_final_pc)){
+  pc_genes_names[i] <- retrogenes_final_pc[[i]][[1]]$retroid
+  pc_genes_chrom[i] <- retrogenes_final_pc[[i]][[1]]$retrochrom
+  pc_genes_start[i] <- retrogenes_final_pc[[i]][[1]]$retroloc
+  pc_genes_end[i] <- retrogenes_final_pc[[i]][[1]]$retroloc+900000
+}
+pc_genes_chromplot <- data.frame(Name = pc_genes_names,
+                                 Chrom = pc_genes_chrom,
+                                 Start = pc_genes_start,
+                                 End = pc_genes_end,
+                                 Colors = rep("purple", times = length(retrogenes_final_pc)))
+chromPlot(gaps = hg_gap, segment = pc_genes_chromplot, title = "Retrogenes only")
+
+```
+
+\pagebreak
+Finally, we can examine the distribution of the network genes in the same way as above.
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap="Distribution of network genes across the human genome"}
+num_network <- 0
+for(i in 1:length(retrogenes_by_parentals)){
+  num_network <- num_network + length(retrogenes_by_parentals[[i]]$partnergenes)
+}
+network_genes_names <- vector(mode = "character", length = num_network)
+network_genes_chrom <- vector(mode = "character", length = num_network)
+network_genes_start <- vector(mode = "numeric", length = num_network)
+network_genes_end <- vector(mode = "numeric", length = num_network)
+count <- 0
+for(i in 1:length(retrogenes_by_parentals)){
+  num <- length(retrogenes_by_parentals[[i]]$partnergenes)
+  for(j in 1:num){
+    network_genes_names[count + j] <- retrogenes_by_parentals[[i]]$partnergenes[j]
+    network_genes_chrom[count + j] <- retrogenes_by_parentals[[i]]$partnerchroms[j]
+    network_genes_start[count + j] <- retrogenes_by_parentals[[i]]$partnerlocs[j]
+    network_genes_end[count + j] <- retrogenes_by_parentals[[i]]$partnerlocs[j] + 100000
+  }
+  count <- count + num
+}
+
+network_genes_chromplot <- data.frame(Name = network_genes_names,
+                                      Chrom = network_genes_chrom,
+                                      Start = network_genes_start,
+                                      End = network_genes_end,
+                                      Colors = rep("orange", times = length(num_network)))
+chromPlot(gaps = hg_gap, segment = network_genes_chromplot, title = "Partner genes for all retrocopies") 
+
+#network genes of protein coding retrogenes only
+num_network_pc <- 0
+for(i in 1:length(retrogenes_by_parentals_pc)){
+  num_network_pc <- num_network_pc + length(retrogenes_by_parentals_pc[[i]]$partnergenes)
+}
+network_pc_genes_names <- vector(mode = "character", length = num_network_pc)
+network_pc_genes_chrom <- vector(mode = "character", length = num_network_pc)
+network_pc_genes_start <- vector(mode = "numeric", length = num_network_pc)
+network_pc_genes_end <- vector(mode = "numeric", length = num_network_pc)
+count <- 0
+for(i in 1:length(retrogenes_by_parentals_pc)){
+  num <- length(retrogenes_by_parentals_pc[[i]]$partnergenes)
+  for(j in 1:num){
+    network_pc_genes_names[count + j] <- retrogenes_by_parentals_pc[[i]]$partnergenes[j]
+    network_pc_genes_chrom[count + j] <- retrogenes_by_parentals_pc[[i]]$partnerchroms[j]
+    network_pc_genes_start[count + j] <- retrogenes_by_parentals_pc[[i]]$partnerlocs[j]
+    network_pc_genes_end[count + j] <- retrogenes_by_parentals_pc[[i]]$partnerlocs[j] + 100000
+  }
+  count <- count + num
+}
+
+network_pc_genes_chromplot <- data.frame(Name = network_pc_genes_names,
+                                      Chrom = network_pc_genes_chrom,
+                                      Start = network_pc_genes_start,
+                                      End = network_pc_genes_end,
+                                      Colors = rep("orange", times = length(num_network_pc)))
+chromPlot(gaps = hg_gap, segment = network_pc_genes_chromplot, title = "Partner genes for retrogenes") 
+```
+Here we note that distribution of network gene locations across the genome for retrogenes does not appear to be substantially different from that of the larger population of retrocopies. In other words, almost all retrocopies seem to share a common regulatory network. 
+
+# 2. Testing data quality
+
+We want to confirm whether or not our data collection procedures have produced plausible and correct data. To do this, we test an existing and well-studied hypothesis; the out-of-the-X (ootX) hypothesis. This hypothesis states that in human and drosophila, more retrogenes originate from the X chromosome than expected given a uniformly random chance of retrogene formation from any gene in the genome. This hypothesis has abundant empirical support, and so we can use it to test our data quality.
+
+## a) Building reference distributions
+
+The null hypothesis is that every gene on every chromosome is equally likely to produce retrogenes. Thus, we build the reference distribution by drawing chromosomes weighted by the number of genes per chromosome. We can build one reference distribution for the set of all retrogenes and another for the set of only protein coding retrogenes. The statistic being calculated is 
+
+$$X = theoretical\;\#\;of\;retrogenes\;on\;a\;different\;chromosome\;from\;parental\;gene\;for\;sample\;size\;n$$
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap= "Reference distributions for testing the ootX hypothesis"}
+#build reference distribution for set of all retrogenes
+ref_dist_full_2a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  sim_parents <- sample(c(1:22, "X", "Y"), 
+                        size = length(retrogenes_final), 
+                        prob = human_genes_per_chrom$chrom.size,
+                        replace = TRUE)
+  ref_dist_full_2a[i] <- sum(sim_parents == "X")
+}
+density_full_2a <- density(ref_dist_full_2a)
+
+#build reference distribution for set of just protein coding retrogenes
+ref_dist_pc_2a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  sim_parents <- sample(c(1:22, "X", "Y"), 
+                        size = length(retrogenes_final_pc), 
+                        prob = human_genes_per_chrom$chrom.size,
+                        replace = TRUE)
+  ref_dist_pc_2a[i] <- sum(sim_parents == "X")
+}
+density_pc_2a <- density(ref_dist_pc_2a)
+
+#take a look at reference distributions
+ref_dist_2a_df <- data.frame(num_diff_full = ref_dist_full_2a, num_diff_pc = ref_dist_pc_2a)
+ggplot(ref_dist_2a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = mean(num_diff_full), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of parental genes from the X (all retrocopies)", 
+       x = "Number of parental genes from the X chromosome", 
+       y = "Density") + 
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggplot(ref_dist_2a_df, aes(x = num_diff_pc)) + 
+  geom_bar(
+            position = "identity", 
+            alpha = .5, color = "darkgreen", 
+            fill = "lightgreen") +
+  geom_vline(aes(xintercept = mean(num_diff_pc), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of parental genes from the X (retrogenes only)", 
+       x = "Number of parental genes from the X chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none")
+```
+
+## b) Obtaining test statistics
+
+Our test statistic will be the total number of retrogenes that do originate off the X. We can calculate this for both the full set and the protein coding set as 
+
+$$\hat{x} = observed\;\#\;of\;retrogenes\;on\;different\;chromosomes\;from\;parental\;gene$$
+
+```{r}
+#full set test statistic
+totalX_2b <- 0
+for(i in 1:length(retrogenes_final)){
+  if(retrogenes_final[[i]][[1]]$parentalchrom == "X"){
+    totalX_2b <- totalX_2b + 1
+  }
+}
+
+totalX_pc_2b <- 0
+for(i in 1:length(retrogenes_final_pc)){
+  if(retrogenes_final_pc[[i]][[1]]$parentalchrom == "X"){
+    totalX_pc_2b <- totalX_pc_2b +1
+  }
+}
+```
+\pagebreak
+
+## c) Hypothesis testing
+
+Now we can test our observed statistics against our reference distributions. We will use a significance level of \(\alpha = .05\)
+
+```{r,warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap="Testing the ootX hypothesis using our dataset"}
+p_val_full_2c <- sum(ref_dist_full_2a <= totalX_2b)/runs * 2
+p_val_pc_2c <- sum(ref_dist_pc_2a>= totalX_pc_2b)/runs * 2
+
+# plot(density_full_2a, 
+#      ylim=c(-.005,.035), 
+#      main = "Full set test", 
+#      xlab = "total X count", 
+#      ylab = "density",
+#      col = 6 )
+# polygon(density(ref_dist_full_2a),
+#         col = rgb(0,0,1,.2))
+# lines(c(totalX_2b, totalX_2b),c(-0.05, .035), lwd = 3, col = "blue")
+# text(210, .025, paste("p = ",p_val_full_2c), pos = 4, cex = 1)
+# 
+# plot(density_pc_2a, 
+#      ylim=c(-.005,.25),
+#      xlim = c(0, 25),
+#      main = "protein coding only", 
+#      xlab = "total X count", 
+#      ylab = "density",
+#      col = 9 )
+# polygon(density(ref_dist_pc_2a),
+#         col = rgb(0,.6,.4,.2))
+# lines(c(totalX_pc_2b, totalX_pc_2b),c(-0.05, .25), lwd = 3, col = "blue")
+# text(15, .2, paste("p ~ ",p_val_pc_2c), pos = 4, cex = 1)
+
+ggplot(ref_dist_2a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = totalX_2b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe more retrocopies out of the X than expected?", 
+       x = "Number of parental genes from the X chromosome", 
+       y = "Density") + 
+  theme_classic() +
+  theme(legend.position = "none") + 
+  geom_text(x = 150, y = .02,
+            label = paste("p = ", p_val_full_2c))
+
+ggplot(ref_dist_2a_df, aes(x = num_diff_pc)) + 
+  geom_bar(position = "identity", 
+            alpha = .5, color = "darkgreen", 
+            fill = "lightgreen") +
+  geom_vline(aes(xintercept = totalX_pc_2b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe more retrogenes out of the X than expected?", 
+       x = "Number of parental genes from the X chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none") +
+  geom_text(x = 15, y = 150,
+            label = paste("p = ", p_val_pc_2c))
+```
+
+
+There is a strong signal of retrogene movement away from the X chromosome, which clearly supports the ootX hypothesis. We can be somewhat confident in the quality of our data, although there are other avenues if extensive quality control is needed.
+
+
+# 3. First hypothesis test: retrogenes are not distributed across the genome independent of parental location
+
+We hypothesize that a decrease in linkage can influence retrogene fixation probability. A preliminary way of testing for such an effect would be to determine whether retrogenes are found on different chromosomes from the parental gene more or less often than we would expect. 
+
+As previously noted, the majority of tests in our investigation are conducted using both the full set of retrocopies and a subset of confirmed protein-coding retrogenes. The reason for this is that protein-coding retrogenes are known to perform some function in the organism and are thus of evolutionary consequence, whereas the full set of retrogenes contains sequences whose presence in the genome may simply be the result of the stochastic activity of RMGD. 
+
+## a) Building the reference distribution
+
+Here, we build the reference distribution. Our null hypothesis is that retrogenes are distributed across the genome at random. Hence, we will randomly select a set of parental genes by sampling from the set of chromosomes weighted by gene density, and then create daughter retrocopies by sampling from the set of chromosomes weighted by size in base pairs. The statistic we will construct a distribution over is 
+
+$$X = \frac{total\;\#\;pairs\;on\;different\;chromosomes}{n}$$
+
+By normalizing to a percentage, we can better compare results from the full set of retrogenes to results from the protein coding retrogenes only. 
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap= "Reference distributions under the assumption that retrogenes are distributed across the genome at random"}
+#make reference distribution for full set of retrogenes
+ref_dist_full_3a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  diff_chrom_bs <- vector(mode = "logical", length = length(retrogenes_final))
+  #retro_sample <- sample(retrogenes_final, size = length(retrogenes_final), replace = TRUE)
+  for(j in 1:length(retrogenes_final)){
+    retro_chrom <- sample(row.names(human_genome), size = 1, prob = human_genome$chrom.size)#try with gene density
+    #parent_chrom <- retro_sample[[j]][[1]]$parentalchrom
+    parent_chrom <- sample(row.names(human_genome), size = 1, prob = human_genes_per_chrom$chrom.size)
+    diff_chrom_bs[j] <- retro_chrom!=parent_chrom
+  }
+  ref_dist_full_3a[i] <- sum(diff_chrom_bs)/length(retrogenes_final)
+}
+density_full_3a <- density(ref_dist_full_3a)
+
+#make reference distribution for protein coding set
+ref_dist_pc_3a <- vector(mode = "numeric", length = runs)
+for(i in 1:runs){
+  diff_chrom_bs <- vector(mode = "logical", length = length(retrogenes_final_pc))
+  #retro_sample <- sample(retrogenes_final_pc, size = length(retrogenes_final_pc), replace = TRUE)
+  for(j in 1:length(retrogenes_final_pc)){
+    retro_chrom <- sample(row.names(human_genome), size = 1, prob = human_genome$chrom.size)
+    #parent_chrom <- retro_sample[[j]][[1]]$parentalchrom
+    parent_chrom <- sample(row.names(human_genome), size = 1, prob = human_genes_per_chrom$chrom.size)
+    diff_chrom_bs[j] <- retro_chrom!=parent_chrom 
+  }
+  ref_dist_pc_3a[i] <- sum(diff_chrom_bs)/length(retrogenes_final_pc)
+}
+density_pc_3a <- density(ref_dist_pc_3a)
+
+#visualize
+ref_dist_3a_df <- data.frame(num_diff_full = ref_dist_full_3a, num_diff_pc = ref_dist_pc_3a)
+ggplot(ref_dist_3a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = mean(num_diff_full), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of movement away from the parental chromosome \n (all retrocopies)", 
+       x = "Average proportion of copies moving away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_pc)) + 
+  geom_histogram(aes(y = ..density..),
+                position = "identity", 
+                alpha = .5, color = "darkgreen", 
+                fill = "lightgreen") +
+  geom_density(alpha = .6, color = "darkgreen", size = 1, fill = "lightgreen") + 
+  geom_vline(aes(xintercept = mean(num_diff_pc), color = "orange"), linetype = "dashed")+
+  labs(title = "Sampling distribution of movement away from the parental chromosome \n (retrogenes)", 
+       x = "Average proportion of genes moving away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none")
+```
+
+## b) Calculate test statistics
+
+For our test statistics, we want to calculate the statistic we constructed above using our sample data.
+$$\hat{x} = \frac{total\;\#\;observed\;pairs\;on\;different\;chromosomes}{n}$$
+```{r}
+#for our full dataset
+diff_chrom_full_3b <- vector(mode = "logical", length = length(retrogenes_final))
+for(i in 1:length(retrogenes_final)){
+  retro_chrom <- retrogenes_final[[i]][[1]]$retrochrom
+  parent_chrom <- retrogenes_final[[i]][[1]]$parentalchrom
+  diff_chrom_full_3b[i] <- retro_chrom!=parent_chrom
+}
+ts_full_3b <- sum(diff_chrom_full_3b)/length(retrogenes_final)
+
+#for protein coding only
+diff_chrom_pc_3b <- vector(mode = "logical", length = length(retrogenes_final_pc))
+for(i in 1:length(retrogenes_final_pc)){
+  retro_chrom <- retrogenes_final_pc[[i]][[1]]$retrochrom
+  parent_chrom <- retrogenes_final_pc[[i]][[1]]$parentalchrom
+  diff_chrom_pc_3b[i] <- retro_chrom!=parent_chrom
+}
+ts_pc_3b <- sum(diff_chrom_pc_3b)/length(retrogenes_final_pc)
+
+print("Test statistic for retrocopies:"); print(ts_full_3b)
+print("Test statistic for retrogenes:"); print(ts_pc_3b)
+```
+
+\pagebreak
+
+## c) Test hypotheses
+
+With our test statistics, we can test our hypotheses, with a significance level of \(\alpha = .05\).
+
+
+```{r, warning = FALSE, message = FALSE, results = 'hide', fig.keep = 'all', fig.cap="Nonparametric test of retrogene movement away from parental genes"}
+pval_full_3c <- sum(ref_dist_full_3a>=ts_full_3b)/runs
+pval_pc_3c <- sum(ref_dist_pc_3a>=ts_pc_3b)/runs
+
+
+# plot(density_full_3a, 
+#      main = "Full set test", 
+#      xlab = "% different chrom", 
+#      ylab = "density",
+#      col = 6 )
+# polygon(density_full_3a,
+#         col = rgb(0,0,1,.2))
+# lines(c(ts_full_3b, ts_full_3b),c(-0.05, 120), lwd = 3, col = "blue")
+# text(.96, 100, paste("p = ",pval_full_3c), pos = 4, cex = 1)
+# 
+# plot(density_pc_3a, 
+#      main = "protein coding only", 
+#      xlab = "% different chrom", 
+#      ylab = "density",
+#      col = 9 )
+# polygon(density_pc_3a,
+#         col = rgb(0,.6,.4,.2))
+# lines(c(ts_pc_3b, ts_pc_3b),c(-0.05, 120), lwd = 3, col = "blue")
+# text(.90, 15, paste("p ~ ",pval_pc_3c), pos = 4, cex = 1)
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_full)) + 
+  geom_histogram(aes(y =..density..), 
+                 position = "identity", 
+                 alpha = .5, color = "darkblue", 
+                 fill = "lightblue") +
+  geom_density( alpha = .6, color = "darkblue", size = 1, fill = "lightblue") +
+  geom_vline(aes(xintercept = ts_full_3b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe a change in chromosome more than expected? \n (retrocopies)", 
+       x = "Avg. prop. of retrocopy movement away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none") + 
+  geom_text(x = .957, y = 100,
+            label = paste("p = ", pval_full_3c))
+
+ggplot(ref_dist_3a_df, aes(x = num_diff_pc)) + 
+  geom_bar(position = "identity", 
+            alpha = .5, color = "darkgreen", 
+            fill = "lightgreen") +
+  geom_vline(aes(xintercept = ts_pc_3b, color = "orange"), size = 1.2)+
+  labs(title = "Do we observe a change in chromosome more than expected? \n (retrogenes)", 
+       x = "Avg. prop. of retrogene movement away from parental chromosome", 
+       y = "Count") + 
+  theme_classic() +
+  theme(legend.position = "none") +
+  geom_text(x = .98, y = 170,
+            label = paste("p = ", pval_pc_3c))
+```
+
+The above test demonstrates that there is a significant trend among retrogenes towards movement away from the parental chromosome; however, while significant at our \(\alpha\), the difference is not substantial. Hence, it may be worthwhile to investigate these trends in a system with fewer chromosomes to mitigate the inherent stochasticity of sampling from a large number of chromosomes in our Monte Carlo simulations. 
