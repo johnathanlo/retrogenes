@@ -31,7 +31,7 @@ for(i in 1:length(retrogenes_final)){
 length(unique(all_partners))
 
 
-###HS ootX
+###HS ootX (supp fig 1)#####
 
 
 #build reference distribution for set of just protein coding retrogenes
@@ -57,15 +57,15 @@ for(i in 1:length(retrogenes_final_pc)){
 #calculate p-values and plot on histogram 
 p_val_2c <- sum(ref_dist_2a >= totalX_2b)/runs * 2 #test statistic less than median; multiply by 2 b/c test should be two-tailed
 
-
+par(mar=c(5,5,5,5))
 hist(ref_dist_2a,
      xlim = c(0,30),
      main = "",
      xlab = "Retrogenes from X chromosome (human)",
      ylab = "Count",
      col = "green",
-     cex.axis = 1.5,
-     cex.lab = 1.5)
+     cex.axis = 1.75,
+     cex.lab = 1.75)
 polygon(density_2a,
         col = rgb(0,0,1,.2))
 lines(c(totalX_2b, totalX_2b),c(0, 1000), lwd = 3, col = "blue")
@@ -119,17 +119,17 @@ ts_3b <- sum(retro_dists_test)/length(retrogenes_final_pc_noX)
 
 #calc p-value and plot
 pval_3c <- sum(ref_dist_3a<=ts_3b)/runs*2
-
+par(mar=c(5,5,5,5))
 hist(ref_dist_3a,
      breaks = 15,
      main = "",
      xlab = "Distance to parental gene (human)",
      ylab = "Count",
      col = "green",
-     cex.axis = 1.5,
-     cex.lab = 1.5)
+     cex.axis = 1.75,
+     cex.lab = 1.75)
 lines(c(ts_3b, ts_3b),c(-0.05, 420), lwd = 3, col = "blue")
-text(((max(hist_3a$breaks)-min(hist_3a$breaks))*.8) + min(hist_3a$breaks),
+text(((max(hist_3a$breaks)-min(hist_3a$breaks))*.6) + min(hist_3a$breaks),
      max(hist_3a$counts)*.8, paste("p = ",pval_3c), pos = 4, cex = 1.5)
 
 
@@ -204,17 +204,17 @@ ts_4b <- totdist/n
 
 #calc p-value, make fig
 pval_4c <- sum(sim_dists_4a<=ts_4b)/runs*2
-
+par(mar=c(5,5,5,5))
 hist(sim_dists_4a,
      breaks = 15,
      main = "",
      xlab = "Avg distance between parent and daughter(s) (human)",
      ylab = "Count",
      col = "green",
-     cex.axis = 1.5,
-     cex.lab = 1.5)
+     cex.axis = 1.75,
+     cex.lab = 1.75)
 lines(c(ts_4b, ts_4b),c(-0.05, 400), lwd = 3, col = "blue")
-text(((max(hist_4a$breaks)-min(hist_4a$breaks))*.8) + min(hist_4a$breaks), 
+text(((max(hist_4a$breaks)-min(hist_4a$breaks))*.6) + min(hist_4a$breaks), 
      max(hist_4a$counts)*.8, paste("p = ",pval_4c), pos = 4, cex = 1.5)
 
 
@@ -292,15 +292,15 @@ ts_5b <- mean(dists_tot)
 
 pval_5c <- sum(ref_dist_5a>=ts_5b)/runs*2
 
-
+par(mar=c(5,5,5,5))
 hist(ref_dist_5a, 
      breaks = 15,
      main = "", 
      xlab = "Mean minimum distance (human)", 
      ylab = "Count",
      col = "green",
-     cex.axis = 1.5,
-     cex.lab = 1.5)
+     cex.axis = 1.75,
+     cex.lab = 1.75)
 lines(c(ts_5b, ts_5b),c(-0.05, 400), lwd = 3, col = "blue")
 text(((max(hist_5a$breaks)-min(hist_5a$breaks))*.8) + min(hist_5a$breaks), 
      max(hist_5a$counts)*.8, paste("p = ",pval_5c), pos = 4, cex = 1.5)
